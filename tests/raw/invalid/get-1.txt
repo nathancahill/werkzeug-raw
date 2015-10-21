@@ -1,0 +1,1 @@
+GET ----- /foo/bar?tequila=42 HTTP/1.1

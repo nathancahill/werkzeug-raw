@@ -3,9 +3,10 @@ from StringIO import StringIO
 
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.test import ClientRedirectError
+from werkzeug.exceptions import BadRequest
 
 
-__all__ = ['RawHTTPRequest', 'raw_environ', 'open_raw_request']
+__all__ = ['RawHTTPRequest', 'BadRequest', 'environ', 'open']
 
 
 class AttrDict(dict):
@@ -16,7 +17,8 @@ class AttrDict(dict):
 
 class RawHTTPRequest(WSGIRequestHandler):
     """A subclass of `werkzeug.serving.WSGIRequestHandler` that accepts
-    raw HTTP input from a string `raw`.
+    raw HTTP input from a string `raw`. `error_code` and `error_message` will
+    be set if parsing fails.
 
     :param raw: Raw HTTP string.
     :returns: `werkzeug_raw.RawHTTPRequest`
@@ -40,9 +42,22 @@ class RawHTTPRequest(WSGIRequestHandler):
         self.error_message = message
 
 
-def raw_environ(raw):
+class BadRequestSyntax(BadRequest):
+    """**400** `Bad Request`
+
+    Raise if the raw HTTP input parsing fails.
+    """
+    code = 400
+    description = (
+        'The browser (or proxy) sent a request that this server could '
+        'not understand.'
+    )
+
+
+def environ(raw):
     """A wrapper around `RawHTTPRequest` that raises `ValueError` if HTTP
-    parsing returns an error code. Returns a WSGI environment.
+    parsing returns an error code. Returns a WSGI environment suitable for
+    Flask request context.
 
     :param raw: Raw HTTP string.
     :returns: WSGI environment.
@@ -51,20 +66,17 @@ def raw_environ(raw):
     request = RawHTTPRequest(raw)
 
     if request.error_code:
-        raise ValueError(request.error_message)
+        raise BadRequestSyntax
 
     return request.make_environ()
 
 
-def open_raw_request(client, raw, *args, **kwargs):
+def open(client, raw, *args, **kwargs):
     """Opens a request on a `werkzeug.test.Client` with raw HTTP input from
-    a string `raw`.
+    a string `raw`. Suitable for opening requests on Flask test clients.
 
     :param client: `werkzeug.test.Client`
     :param raw: Raw HTTP string.
-
-    Additional parameters:
-
     :param as_tuple: Returns a tuple in the form ``(environ, result)``
     :param buffered: Set this to True to buffer the application run.
                      This will automatically close the application for
@@ -72,14 +84,14 @@ def open_raw_request(client, raw, *args, **kwargs):
     :param follow_redirects: Set this to True if the `Client` should
                              follow HTTP redirects.
 
-    :returns: Response
+    :returns: Response.
     """
     as_tuple = kwargs.pop('as_tuple', False)
     buffered = kwargs.pop('buffered', False)
     follow_redirects = kwargs.pop('follow_redirects', False)
-    environ = raw_environ(raw)
+    _environ = environ(raw)
 
-    response = client.run_wsgi_app(environ, buffered=buffered)
+    response = client.run_wsgi_app(_environ, buffered=buffered)
 
     #: handle redirects
     redirect_chain = []
@@ -93,12 +105,12 @@ def open_raw_request(client, raw, *args, **kwargs):
         if new_redirect_entry in redirect_chain:
             raise ClientRedirectError('loop detected')
         redirect_chain.append(new_redirect_entry)
-        environ, response = client.resolve_redirect(response, new_location,
-                                                    environ,
-                                                    buffered=buffered)
+        _environ, response = client.resolve_redirect(response, new_location,
+                                                     _environ,
+                                                     buffered=buffered)
 
     if client.response_wrapper is not None:
         response = client.response_wrapper(*response)
     if as_tuple:
-        return environ, response
+        return _environ, response
     return response

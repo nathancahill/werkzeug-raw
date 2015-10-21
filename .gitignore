@@ -1,0 +1,4 @@
+*.pyc
+.DS_Store
+venv/
+docs/_build/
