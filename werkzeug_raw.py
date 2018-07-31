@@ -1,5 +1,5 @@
 
-from StringIO import StringIO
+from six import BytesIO
 
 from werkzeug.serving import WSGIRequestHandler
 from werkzeug.test import ClientRedirectError
@@ -32,7 +32,7 @@ class RawHTTPRequest(WSGIRequestHandler):
             server_address=('localhost', 80),
         )
         self.client_address = 'localhost'
-        self.rfile = StringIO(raw)
+        self.rfile = BytesIO(raw)
         self.raw_requestline = self.rfile.readline()
         self.error_code = self.error_message = None
         self.parse_request()

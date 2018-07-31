@@ -20,6 +20,6 @@ setup(
     license='MIT',
     keywords='werkzeug flask http',
     py_modules=['werkzeug_raw'],
-    install_requires=['werkzeug'],
+    install_requires=['werkzeug', 'six'],
     tests_require=['nose', 'coverage'],
 )
